@@ -99,6 +99,9 @@ namespace HW_18
             try
             {
                 var fromAccBalance = GetAccountBalance(conString, fromAcc);
+                //fromAccBalance = GetAccountBalance(conString, toAcc);
+               var Balance = GetAccountBalance(conString, toAcc);
+
                 var fromAccId = GetAccountId(fromAcc, conString);
 
                 if (fromAccBalance <= 0 || (fromAccBalance - amount) < 0)
@@ -108,11 +111,12 @@ namespace HW_18
                         command.CommandText = "UPDATE [dbo].[Accounts] SET [IS_Active] = 0 WHERE Id = @accountId";
                         command.Parameters.AddWithValue("@accountId", fromAccId);
                         command.ExecuteNonQuery();
-                        sqlTransaction.Commit();
+                       // sqlTransaction.Commit();
                         //Console.WriteLine($"Balance this account {fromAccBalance}");
                         throw new Exception($"Balance this account {fromAccBalance}"); 
                     }
-                    throw new Exception("From account balance not enough amount");
+                    throw new Exception($"in your balance not this {amount} amount! \nYour balance:{fromAccBalance}");
+                    //throw new Exception("From account balance not enough amount");
                 }
 
 
@@ -121,12 +125,15 @@ namespace HW_18
                     throw new Exception("Account not found");
                 }
 
-                command.CommandText = "INSERT INTO [dbo].[Transactions]([Amount] ,[Type] ,[Created_At] ,[Account_Id]) VALUES (@amount , 'C' , @createdAt, @accountId)";
+                command.CommandText = "INSERT INTO [dbo].[Transactions]([Amount] ,[Type] ,[Created_At] ,[Account_Id]) VALUES (-@amount , 'C' , @createdAt, @accountId)";
                 command.Parameters.AddWithValue("@amount", amount);
                 command.Parameters.AddWithValue("@createdAt", DateTime.Now);
                 command.Parameters.AddWithValue("@accountId", fromAccId);
 
                 var result1 = command.ExecuteNonQuery();
+
+                //var Balancee = GetAccountBalance(conString, toAcc);
+                Balance += amount;
 
                 var toAccId = GetAccountId(toAcc, conString);
 
@@ -137,14 +144,7 @@ namespace HW_18
 
                 command.Parameters.Clear();
 
-                //if (fromAccBalance > 0)
-                //{
-                //    command.CommandText = "UPDATE [dbo].[Accounts] SET [IS_Active] = 1 WHERE Id = @accountId";
-                //    command.Parameters.AddWithValue("@accountId", fromAccId);
-                //    command.ExecuteNonQuery();
-                //    sqlTransaction.Commit();
-                //    //Console.WriteLine($"Balance this account {fromAccBalance}");
-                //}
+       
                 command.CommandText = "INSERT INTO [dbo].[Transactions]([Amount] ,[Type] ,[Created_At] ,[Account_Id]) VALUES (@amount , 'D' , @createdAt, @accountId)";
                 command.Parameters.AddWithValue("@amount", amount);
                 command.Parameters.AddWithValue("@createdAt", DateTime.Now);
@@ -157,6 +157,24 @@ namespace HW_18
                 if (result1 == 0 || result2 == 0)
                 {
                     throw new Exception("Something went wrong");
+                }
+
+                if (Balance > 0)
+                {
+                    command.CommandText = "UPDATE [dbo].[Accounts] SET [IS_Active] = 1 WHERE Id = @accId";
+                    command.Parameters.AddWithValue("@accId", toAccId);
+                    command.ExecuteNonQuery();
+                 
+                }
+
+                fromAccBalance -= amount; 
+
+                if (fromAccBalance <= 0)
+                {
+                    command.CommandText = "UPDATE [dbo].[Accounts] SET [IS_Active] = 0 WHERE Id = @acId";
+                    command.Parameters.AddWithValue("@acId", fromAccId);
+                    command.ExecuteNonQuery();
+
                 }
 
                 sqlTransaction.Commit();
@@ -197,10 +215,7 @@ namespace HW_18
                 acc.Account = reader["Account"].ToString();
                 acc.Is_Active = int.Parse(reader["Is_Active"].ToString());
                 acc.Created_At  =DateTime.Parse(reader["Created_At"].ToString());
-                //acc.Updated_At = DateTime.Parse(reader["Updated_At"].ToString());
 
-                // acc.Created_At = !string.IsNullOrEmpty(reader["Created_At"]?.ToString()) ? DateTime.Parse(reader["Created_At"].ToString()) ;
-                //acc.Updated_At = !string.IsNullOrEmpty(reader["Updated_At"]?.ToString()) ? DateTime.Parse(reader["Updated_At"].ToString()) : null;
                 ShowAcc(ref accounts, acc);
             }
             connection.Close();
@@ -255,7 +270,7 @@ namespace HW_18
             var conn = new SqlConnection(conString);
             conn.Open();
             var command = conn.CreateCommand();
-            command.CommandText = "select sum( case when t.Type = 'C' then t.Amount * -1 else t.Amount end) from Transactions t left join Accounts a on t.Account_Id = a.Id where a.account = @fromAcc";
+            command.CommandText = "select sum( Amount) from Transactions t left join Accounts a on t.Account_Id = a.Id where a.account = @fromAcc";
             command.Parameters.AddWithValue("@fromAcc", account);
             var reader = command.ExecuteReader();
             var fromAccBalance = 0m;
@@ -271,7 +286,6 @@ namespace HW_18
             conn.Close();
             return fromAccBalance;
         }
-
 
 
         private static int GetAccountId(string number, string conString)
